@@ -390,7 +390,7 @@
       if (data.ok) {
         const fileId = data.fileId || '';
         // Redirect back with fileId
-        window.location.href = scriptBase + '?page=photo_return&user=' + encodeURIComponent(username) + '&fileId=' + encodeURIComponent(fileId);
+        window.top.location.href = scriptBase + '?page=photo_return&user=' + encodeURIComponent(username) + '&fileId=' + encodeURIComponent(fileId);
       } else {
         showError('ส่งรูปไม่สำเร็จ: ' + (data.msg || 'ไม่ทราบสาเหตุ'));
       }
