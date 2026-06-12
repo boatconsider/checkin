@@ -1,425 +1,309 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-  <title>CKD Studio — ถ่ายรูปเช็คอิน</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CKD Studio – ถ่ายรูปเช็คอิน</title>
   <style>
     :root {
       --crimson: #7B1C2A;
       --crimson-dark: #5a1320;
+      --crimson-light: #a52535;
       --silver: #8a8a8a;
-      --bg: #0d0d0d;
-      --white: #fff;
-      --green: #22c55e;
+      --silver-light: #c8c8c8;
+      --bg: #f9f7f7;
+      --white: #ffffff;
+      --shadow: 0 4px 24px rgba(123,28,42,0.10);
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body {
-      height: 100%; width: 100%;
-      background: var(--bg);
+    body {
       font-family: 'Segoe UI', sans-serif;
-      overflow: hidden;
+      background: var(--bg);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 24px 16px 40px;
     }
-
-    /* ── CAMERA FULLSCREEN ── */
-    #cam-view {
-      position: fixed; inset: 0;
-      display: flex; flex-direction: column;
-    }
-
-    #video {
-      position: absolute; inset: 0;
-      width: 100%; height: 100%;
-      object-fit: cover;
-    }
-
-    /* overlay gradient top */
-    .cam-top {
-      position: relative; z-index: 10;
-      padding: 52px 20px 16px;
-      background: linear-gradient(to bottom, rgba(0,0,0,.65) 0%, transparent 100%);
-      display: flex; align-items: center; justify-content: space-between;
-    }
-    .cam-title {
-      color: #fff;
-      font-size: 16px; font-weight: 700;
-      letter-spacing: .5px;
-    }
-    .cam-user {
-      background: rgba(255,255,255,.15);
-      backdrop-filter: blur(8px);
-      color: #fff;
-      font-size: 12px; font-weight: 600;
-      padding: 5px 12px; border-radius: 20px;
-    }
-
-    /* flip btn top-right */
-    .flip-btn {
-      position: absolute; z-index: 20;
-      top: 52px; right: 20px;
-      width: 44px; height: 44px;
-      border-radius: 50%;
-      background: rgba(255,255,255,.18);
-      backdrop-filter: blur(8px);
-      border: 1.5px solid rgba(255,255,255,.3);
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer;
-      transition: background .18s;
-    }
-    .flip-btn:active { background: rgba(255,255,255,.3); }
-    .flip-btn svg { display: block; }
-
-    /* ── BOTTOM CONTROLS ── */
-    .cam-bottom {
-      position: absolute; bottom: 0; left: 0; right: 0; z-index: 10;
-      padding: 20px 32px 44px;
-      background: linear-gradient(to top, rgba(0,0,0,.7) 0%, transparent 100%);
-      display: flex; align-items: center; justify-content: center; gap: 32px;
-    }
-
-    /* shutter */
-    .shutter {
-      width: 72px; height: 72px; border-radius: 50%;
-      background: transparent;
-      border: 4px solid rgba(255,255,255,.9);
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer; position: relative;
-      transition: transform .12s;
-    }
-    .shutter:active { transform: scale(.92); }
-    .shutter-inner {
-      width: 54px; height: 54px; border-radius: 50%;
-      background: var(--white);
-      transition: background .12s;
-    }
-    .shutter:active .shutter-inner { background: #ccc; }
-
-    /* gallery thumb (placeholder) */
-    .thumb-box {
-      width: 52px; height: 52px; border-radius: 10px;
-      background: rgba(255,255,255,.1);
-      border: 2px solid rgba(255,255,255,.2);
-      overflow: hidden;
-      cursor: pointer;
-    }
-    .thumb-box img { width: 100%; height: 100%; object-fit: cover; display: none; }
-
-    /* status hint */
-    .cam-hint {
-      position: absolute; bottom: 140px; left: 0; right: 0; z-index: 10;
+    .logo-wrap {
+      margin-bottom: 20px;
       text-align: center;
-      color: rgba(255,255,255,.75);
-      font-size: 13px;
     }
-
-    /* ── PREVIEW OVERLAY ── */
-    #preview-view {
-      position: fixed; inset: 0; z-index: 100;
-      background: #000;
-      display: none; flex-direction: column;
+    .logo-svg {
+      display: block;
+      margin: 0 auto 4px;
     }
-    #preview-img {
+    .logo-sub {
+      font-size: 11px;
+      letter-spacing: 4px;
+      color: var(--silver);
+      text-transform: uppercase;
+      font-weight: 500;
+    }
+    .card {
+      background: var(--white);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      padding: 24px 20px 28px;
+      width: 100%;
+      max-width: 440px;
+    }
+    h2 {
+      color: var(--crimson);
+      font-size: 17px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      text-align: center;
+      letter-spacing: 0.5px;
+    }
+    .cam-toggle {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      margin-bottom: 14px;
+    }
+    .cam-btn {
       flex: 1;
-      width: 100%; object-fit: contain;
+      max-width: 160px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 2px solid var(--silver-light);
+      background: var(--white);
+      color: var(--silver);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .18s;
+    }
+    .cam-btn.active {
+      border-color: var(--crimson);
+      background: var(--crimson);
+      color: var(--white);
+    }
+    #video-wrap {
+      position: relative;
+      width: 100%;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #111;
+      aspect-ratio: 4/3;
+      margin-bottom: 14px;
+    }
+    #video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
       display: block;
     }
-    .preview-actions {
-      padding: 20px 24px 44px;
-      background: rgba(0,0,0,.85);
-      display: flex; gap: 12px;
+    #canvas { display: none; }
+    .action-row {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      margin-bottom: 14px;
     }
     .btn {
-      flex: 1; padding: 15px;
-      border-radius: 14px; border: none;
-      font-size: 15px; font-weight: 700;
-      cursor: pointer; transition: all .18s;
-    }
-    .btn-outline {
-      background: transparent;
-      border: 2px solid rgba(255,255,255,.4);
-      color: #fff;
-    }
-    .btn-outline:active { background: rgba(255,255,255,.1); }
-    .btn-confirm {
-      background: var(--crimson);
-      color: #fff;
-      box-shadow: 0 4px 16px rgba(123,28,42,.4);
-    }
-    .btn-confirm:active { background: var(--crimson-dark); }
-
-    /* ── ERROR STATE ── */
-    #error-view {
-      position: fixed; inset: 0; z-index: 200;
-      background: var(--bg);
-      display: none; flex-direction: column;
-      align-items: center; justify-content: center;
-      padding: 32px;
-      text-align: center;
-    }
-    .err-icon { font-size: 56px; margin-bottom: 20px; }
-    .err-title { color: #fff; font-size: 18px; font-weight: 700; margin-bottom: 10px; }
-    .err-msg { color: var(--silver); font-size: 14px; line-height: 1.6; margin-bottom: 28px; }
-    .btn-retry {
-      padding: 14px 32px; border-radius: 12px;
-      background: var(--crimson); color: #fff;
-      border: none; font-size: 15px; font-weight: 700;
+      padding: 11px 22px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 700;
+      border: none;
       cursor: pointer;
+      transition: all .18s;
     }
-
-    /* ── SENDING OVERLAY ── */
-    #sending-view {
-      position: fixed; inset: 0; z-index: 300;
-      background: rgba(0,0,0,.85);
-      display: none; flex-direction: column;
-      align-items: center; justify-content: center;
-      gap: 16px;
+    .btn-primary {
+      background: var(--crimson);
+      color: var(--white);
+      flex: 1;
     }
-    .send-spinner {
-      width: 48px; height: 48px;
-      border: 4px solid rgba(255,255,255,.2);
-      border-top-color: var(--crimson);
-      border-radius: 50%;
-      animation: spin .8s linear infinite;
+    .btn-primary:hover { background: var(--crimson-dark); }
+    .btn-secondary {
+      background: var(--bg);
+      color: var(--crimson);
+      border: 2px solid var(--crimson);
     }
-    .send-label { color: #fff; font-size: 15px; font-weight: 600; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    #canvas { display: none; }
-
-    /* guide frame */
-    .guide-frame {
-      position: absolute; top: 50%; left: 50%;
-      transform: translate(-50%, -55%);
-      width: min(68vw, 280px); height: min(68vw, 280px);
-      border-radius: 50%;
-      border: 2px solid rgba(255,255,255,.3);
-      pointer-events: none; z-index: 5;
+    .btn-secondary:hover { background: #f0e6e8; }
+    .btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    #preview-section { display: none; margin-bottom: 14px; }
+    #preview-img {
+      width: 100%;
+      border-radius: 10px;
+      border: 2px solid var(--silver-light);
+      display: block;
+    }
+    #status-msg {
+      text-align: center;
+      font-size: 13px;
+      color: var(--silver);
+      min-height: 20px;
+      margin-bottom: 4px;
+    }
+    #status-msg.ok { color: #2a7b2a; font-weight: 600; }
+    #status-msg.err { color: var(--crimson); font-weight: 600; }
+    .send-row { display: none; justify-content: center; }
+    #send-btn {
+      width: 100%;
+      padding: 13px;
+      font-size: 15px;
+    }
+    .divider {
+      height: 1px;
+      background: #ede8e8;
+      margin: 14px 0;
+    }
+    @media (max-width: 480px) {
+      .card { padding: 18px 12px 22px; }
     }
   </style>
 </head>
 <body>
 
-<!-- ── CAMERA VIEW ── -->
-<div id="cam-view">
-  <video id="video" autoplay playsinline muted></video>
-  <canvas id="canvas"></canvas>
-
-  <!-- face guide -->
-  <div class="guide-frame"></div>
-
-  <!-- top bar -->
-  <div class="cam-top">
-    <span class="cam-title">📷 ถ่ายรูปเช็คอิน</span>
-    <span class="cam-user" id="user-label">—</span>
-  </div>
-
-  <!-- flip camera -->
-  <button class="flip-btn" id="flip-btn" onclick="flipCamera()" title="สลับกล้อง">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M1 4v6h6"/><path d="M23 20v-6h-6"/>
-      <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15"/>
-    </svg>
-  </button>
-
-  <!-- hint -->
-  <div class="cam-hint" id="cam-hint">จัดหน้าให้อยู่ในกรอบ แล้วกดปุ่มถ่ายรูป</div>
-
-  <!-- bottom controls -->
-  <div class="cam-bottom">
-    <div class="thumb-box" id="thumb-box">
-      <img id="thumb-img" alt=""/>
-    </div>
-    <button class="shutter" id="shutter-btn" onclick="capture()">
-      <div class="shutter-inner"></div>
-    </button>
-    <div style="width:52px"></div><!-- spacer -->
-  </div>
+<div class="logo-wrap">
+  <!-- CKD Studio SVG Logo -->
+  <svg class="logo-svg" width="160" height="54" viewBox="0 0 260 88" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <!-- C -->
+    <text x="0" y="72" font-family="Georgia,serif" font-size="80" fill="#7B1C2A" font-weight="400">C</text>
+    <!-- K -->
+    <text x="72" y="72" font-family="Georgia,serif" font-size="80" fill="#7B1C2A" font-weight="400">K</text>
+    <!-- D with play triangle -->
+    <text x="148" y="72" font-family="Georgia,serif" font-size="80" fill="#7B1C2A" font-weight="400">D</text>
+    <!-- Play button overlay on D -->
+    <polygon points="175,30 195,44 175,58" fill="#7B1C2A"/>
+    <!-- STUDIO text -->
+    <text x="80" y="87" font-family="Segoe UI,Arial,sans-serif" font-size="14" fill="#8a8a8a" letter-spacing="6" font-weight="500">STUDIO</text>
+  </svg>
 </div>
 
-<!-- ── PREVIEW VIEW ── -->
-<div id="preview-view">
-  <img id="preview-img" alt="รูปที่ถ่าย"/>
-  <div class="preview-actions">
-    <button class="btn btn-outline" onclick="retake()">↩ ถ่ายใหม่</button>
-    <button class="btn btn-confirm" onclick="confirmAndSend()">✅ ใช้รูปนี้</button>
+<div class="card">
+  <h2>📸 ถ่ายรูปเช็คอิน</h2>
+
+  <div class="cam-toggle">
+    <button class="cam-btn" id="btn-back" onclick="switchCamera('back')">🔙 กล้องหลัง</button>
+    <button class="cam-btn" id="btn-front" onclick="switchCamera('front')">🤳 กล้องหน้า</button>
   </div>
-</div>
 
-<!-- ── ERROR VIEW ── -->
-<div id="error-view">
-  <div class="err-icon">📵</div>
-  <div class="err-title">เปิดกล้องไม่ได้</div>
-  <div class="err-msg" id="err-msg">กรุณาอนุญาตการใช้งานกล้องในการตั้งค่าเบราว์เซอร์ แล้วลองใหม่อีกครั้ง</div>
-  <button class="btn-retry" onclick="retryCamera()">🔄 ลองใหม่</button>
-</div>
+  <div id="video-wrap">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="canvas"></canvas>
+  </div>
 
-<!-- ── SENDING VIEW ── -->
-<div id="sending-view">
-  <div class="send-spinner"></div>
-  <div class="send-label">กำลังส่งข้อมูล...</div>
+  <div class="action-row">
+    <button class="btn btn-secondary" id="retake-btn" onclick="retake()" style="display:none">↩ ถ่ายใหม่</button>
+    <button class="btn btn-primary" id="capture-btn" onclick="capture()">📷 ถ่ายรูป</button>
+  </div>
+
+  <div id="preview-section">
+    <div class="divider"></div>
+    <p style="font-size:12px;color:var(--silver);margin-bottom:8px;text-align:center">ตัวอย่างรูปที่ถ่าย</p>
+    <img id="preview-img" alt="preview" />
+  </div>
+
+  <p id="status-msg">กำลังเปิดกล้อง...</p>
+
+  <div class="send-row" id="send-row">
+    <button class="btn btn-primary" id="send-btn" onclick="sendBack()">✅ ใช้รูปนี้ &amp; กลับระบบ</button>
+  </div>
 </div>
 
 <script>
-  // ── PARAMS ──
-  const params     = new URLSearchParams(location.search);
-  const returnUrl  = params.get('returnUrl') || 'https://script.google.com/macros/s/AKfycbw2z9pOWQkH_MOnbPPDeSJ12pBNYZ3LkG8kC6SGirtQKurZ1MoVBkABZ06049rs-toE/exec';
-  const username   = params.get('user') || '';
-
-  document.getElementById('user-label').textContent = username || 'ไม่ระบุ';
+  // ---- รับ params จาก URL ----
+  const params = new URLSearchParams(location.search);
+  const returnUrl = params.get('returnUrl') || '';  // URL ของ Apps Script
+  const username  = params.get('user') || '';
 
   let stream = null;
   let facingMode = 'environment'; // default: กล้องหลัง
   let capturedDataUrl = null;
 
-  // ── START CAMERA ──
+  // ---- เริ่มกล้อง ----
   async function startCamera(mode) {
+    if (stream) { stream.getTracks().forEach(t => t.stop()); }
     try {
-      if (stream) stream.getTracks().forEach(t => t.stop());
       stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: mode },
-          width:  { ideal: 1920 },
-          height: { ideal: 1080 }
-        },
+        video: { facingMode: { ideal: mode }, width: { ideal: 1280 }, height: { ideal: 960 } },
         audio: false
       });
-      const video = document.getElementById('video');
-      video.srcObject = stream;
-      // mirror for front cam
-      video.style.transform = mode === 'user' ? 'scaleX(-1)' : 'scaleX(1)';
-      document.getElementById('cam-hint').textContent = 'จัดหน้าให้อยู่ในกรอบ แล้วกดปุ่มถ่ายรูป';
-      hideError();
+      document.getElementById('video').srcObject = stream;
+      setStatus('กล้องพร้อม — กดถ่ายรูปได้เลย');
     } catch(e) {
-      showError(e.message);
+      setStatus('ไม่สามารถเปิดกล้องได้: ' + e.message, 'err');
     }
   }
 
-  function flipCamera() {
-    facingMode = facingMode === 'environment' ? 'user' : 'environment';
+  function switchCamera(dir) {
+    facingMode = dir === 'back' ? 'environment' : 'user';
+    document.getElementById('btn-back').classList.toggle('active', dir==='back');
+    document.getElementById('btn-front').classList.toggle('active', dir==='front');
     startCamera(facingMode);
+    retake();
   }
 
-  // ── CAPTURE ──
   function capture() {
-    const video  = document.getElementById('video');
+    const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
     canvas.width  = video.videoWidth  || 1280;
-    canvas.height = video.videoHeight || 720;
+    canvas.height = video.videoHeight || 960;
     const ctx = canvas.getContext('2d');
-
-    // front cam: flip horizontally to correct mirror
+    // กล้องหน้า mirror flip
     if (facingMode === 'user') {
       ctx.translate(canvas.width, 0);
       ctx.scale(-1, 1);
     }
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    capturedDataUrl = canvas.toDataURL('image/jpeg', 0.88);
+    capturedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
 
-    // show thumb
-    document.getElementById('thumb-img').src = capturedDataUrl;
-    document.getElementById('thumb-img').style.display = 'block';
-
-    // pause stream
-    if (stream) stream.getTracks().forEach(t => t.stop());
-
-    // show preview
+    // แสดง preview
     document.getElementById('preview-img').src = capturedDataUrl;
-    document.getElementById('preview-view').style.display = 'flex';
+    document.getElementById('preview-section').style.display = 'block';
+    document.getElementById('capture-btn').style.display = 'none';
+    document.getElementById('retake-btn').style.display = 'block';
+    document.getElementById('send-row').style.display = 'flex';
+    setStatus('รูปพร้อมแล้ว — กด "ใช้รูปนี้" เพื่อบันทึก', 'ok');
+
+    // หยุด stream preview แต่ยังไม่ส่ง
+    if (stream) stream.getTracks().forEach(t => t.stop());
   }
 
   function retake() {
     capturedDataUrl = null;
-    document.getElementById('preview-view').style.display = 'none';
+    document.getElementById('preview-section').style.display = 'none';
+    document.getElementById('capture-btn').style.display = 'block';
+    document.getElementById('retake-btn').style.display = 'none';
+    document.getElementById('send-row').style.display = 'none';
+    setStatus('กล้องพร้อม — กดถ่ายรูปได้เลย');
     startCamera(facingMode);
   }
 
-  // ── CONFIRM & SEND BACK ──
-  async function confirmAndSend() {
+  function sendBack() {
     if (!capturedDataUrl) return;
-    showSending();
-
+    if (!returnUrl) {
+      setStatus('ไม่พบ returnUrl — กรุณากลับจากระบบหลัก', 'err');
+      return;
+    }
+    // ส่ง base64 กลับผ่าน postMessage (สำหรับ iframe) หรือ redirect พร้อม sessionStorage
     try {
-      // compress further if too large (> 800KB)
-      let finalDataUrl = capturedDataUrl;
-      const sizeKB = Math.round(finalDataUrl.length * 3 / 4 / 1024);
-      if (sizeKB > 800) {
-        const canvas = document.getElementById('canvas');
-        finalDataUrl = canvas.toDataURL('image/jpeg', 0.65);
-      }
-
-      // store in sessionStorage keyed by username
-      // This won't persist cross-domain — we use URL fragment instead
-      const encoded = encodeURIComponent(finalDataUrl);
-
-      // Build return URL
-      // Apps Script will read 'photo' from hash on its end via doGet redirect
-      // Since sessionStorage is origin-scoped, we use a lightweight approach:
-      // store on THIS origin (github.io) then redirect; Apps Script reads it via postMessage
-      // SIMPLEST reliable method: store here, redirect to Apps Script with a token,
-      // Apps Script page loads and does fetch back to github.io... too complex.
-      //
-      // BEST approach: send photo directly to Apps Script doPost from here,
-      // then redirect with just the fileId.
-
-      // POST photo to Apps Script
-      const fd = new FormData();
-      fd.append('action',      'sendPhoto');
-      fd.append('username',    username);
-      fd.append('photoBase64', finalDataUrl);
-
-      const scriptBase = returnUrl.split('?')[0];
-
-      const resp = await fetch(scriptBase, {
-        method: 'POST',
-        body: fd,
-        redirect: 'follow'
-      });
-
-      let data;
-      const ct = resp.headers.get('content-type') || '';
-      if (ct.includes('json')) {
-        data = await resp.json();
-      } else {
-        const txt = await resp.text();
-        try { data = JSON.parse(txt); }
-        catch { throw new Error('Response ผิดรูปแบบ: ' + txt.slice(0,80)); }
-      }
-
-      hideSending();
-
-      if (data.ok) {
-        const fileId = data.fileId || '';
-        // Redirect back with fileId
-        window.location.href = scriptBase + '?page=photo_return&user=' + encodeURIComponent(username) + '&fileId=' + encodeURIComponent(fileId);
-      } else {
-        showError('ส่งรูปไม่สำเร็จ: ' + (data.msg || 'ไม่ทราบสาเหตุ'));
-      }
+      // บันทึกรูปใน sessionStorage ของ domain นี้
+      sessionStorage.setItem('ckd_photo_' + username, capturedDataUrl);
+      // ส่งกลับ Apps Script
+      const separator = returnUrl.includes('?') ? '&' : '?';
+      window.location.href = returnUrl + separator + 'photoReady=1&user=' + encodeURIComponent(username);
     } catch(e) {
-      hideSending();
-      showError('เกิดข้อผิดพลาด: ' + e.message);
+      setStatus('เกิดข้อผิดพลาด: ' + e.message, 'err');
     }
   }
 
-  // ── ERROR / SENDING HELPERS ──
-  function showError(msg) {
-    document.getElementById('err-msg').textContent = msg || 'เกิดข้อผิดพลาดในการเปิดกล้อง';
-    document.getElementById('error-view').style.display = 'flex';
-  }
-  function hideError() {
-    document.getElementById('error-view').style.display = 'none';
-  }
-  function showSending() {
-    document.getElementById('sending-view').style.display = 'flex';
-  }
-  function hideSending() {
-    document.getElementById('sending-view').style.display = 'none';
-  }
-  function retryCamera() {
-    hideError();
-    startCamera(facingMode);
+  function setStatus(msg, type='') {
+    const el = document.getElementById('status-msg');
+    el.textContent = msg;
+    el.className = type;
   }
 
-  // ── INIT ──
+  // ---- init ----
+  document.getElementById('btn-back').classList.add('active');
   startCamera('environment');
 </script>
 </body>
