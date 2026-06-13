@@ -76,7 +76,7 @@
     #sent.show{display:flex}
     .sent-ico{width:72px;height:72px;background:rgba(68,204,102,.2);border:2px solid rgba(68,204,102,.5);border-radius:50%;display:flex;align-items:center;justify-content:center}
 
-    /* no-camera overlay (desktop/no camera) */
+    /* no-camera overlay */
     #no-cam{display:none;position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:100;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:32px;text-align:center}
     #no-cam.show{display:flex}
     .nc-box{background:#1a1a1a;border:1px solid #333;border-radius:18px;padding:28px 24px;max-width:340px;width:100%;display:flex;flex-direction:column;align-items:center;gap:14px}
@@ -174,7 +174,7 @@
     <button style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.8);font-family:inherit;font-size:.9rem;font-weight:600;padding:12px 32px;border-radius:12px;cursor:pointer;margin-top:4px" onclick="window.close()">ปิดหน้าต่างนี้</button>
   </div>
 
-  <!-- No camera overlay (desktop without camera) -->
+  <!-- No camera overlay -->
   <div id="no-cam">
     <div class="nc-box">
       <div class="nc-ico">🖥️</div>
@@ -251,11 +251,15 @@ const sentEl  = document.getElementById('sent');
 /* ── State ── */
 let stream = null, devices = [], facingMode = 'environment', mirrorOn = false, gridOn = false, isOpen = false;
 let capturedDataURL = null;
+let useBtnDisabled = false; // guard ป้องกัน double-tap
 
-// รับ returnUrl และ username จาก query string (ส่งมาจาก GAS page)
+// รับ returnUrl และ username จาก query string
 const urlParams  = new URLSearchParams(location.search);
 const returnUrl  = urlParams.get('returnUrl') || '';
 const camUser    = urlParams.get('user') || '';
+
+// localStorage key เฉพาะ user (ไม่ตีกันถ้าเปิดหลาย tab)
+const LS_PHOTO_KEY = 'ckd_camera_photo_' + camUser;
 
 const SVG_EYE = `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/>`;
 const SVG_X   = `<line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><line x1="6" y1="6" x2="18" y2="18" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>`;
@@ -299,7 +303,6 @@ async function startCamera(deviceId) {
     constraints = { video: { deviceId: { exact: deviceId } }, audio: false };
   } else {
     const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    // iOS Safari ต้องการ facingMode แบบนี้เท่านั้น
     constraints = { video: isMobile ? { facingMode: { ideal: facingMode } } : true, audio: false };
   }
 
@@ -320,12 +323,10 @@ async function startCamera(deviceId) {
     openIco.innerHTML = SVG_X;
     setMsg('✓ เปิดกล้องสำเร็จ — ' + (s.width||'?') + '×' + (s.height||'?'), 'ok');
   } catch(err) {
-    // iOS fallback: ถ้า environment ไม่ได้ลอง user
     if ((err.name === 'OverconstrainedError' || err.name === 'NotFoundError') && facingMode === 'environment') {
       facingMode = 'user'; mirrorOn = true;
       return startCamera(deviceId);
     }
-    // ไม่มีกล้องเลย (desktop)
     if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
       document.getElementById('no-cam').classList.add('show');
       setMsg('⚠ ไม่พบกล้องในอุปกรณ์นี้', 'err');
@@ -359,10 +360,9 @@ openBtn.addEventListener('click', () => {
     setMsg('⚠ ต้องใช้บน HTTPS', 'err'); return;
   }
   if (!isOpen) {
-    // iOS: เรียก getUserMedia ทันทีจาก user gesture (ไม่ enumerate ก่อน)
     const isMobile = /iPhone|iPad|iPod/i.test(navigator.userAgent);
     if (isMobile) {
-      startCamera(); // iOS ต้องการ user gesture โดยตรง
+      startCamera();
     } else {
       navigator.mediaDevices.enumerateDevices().then(all => {
         const cams = all.filter(d => d.kind === 'videoinput');
@@ -424,6 +424,7 @@ shutter.addEventListener('click', () => {
   prevOv.classList.add('show');
   useBar.classList.add('show');
   shutter.disabled = true;
+  useBtnDisabled = false;
   setMsg('ตรวจสอบรูป แล้วกด "ใช้รูปนี้"', 'ok');
 });
 
@@ -432,53 +433,70 @@ retake.addEventListener('click', () => {
   prevOv.classList.remove('show');
   useBar.classList.remove('show');
   shutter.disabled = false;
+  useBtnDisabled = false;
   setMsg('พร้อมถ่ายอีกครั้ง');
 });
 
-/* ── ส่งรูปกลับ parent window ผ่าน postMessage ── */
+/* ── ส่งรูปกลับ parent window ── */
 useBtn.addEventListener('click', () => {
-  if (!capturedDataURL) return;
+  if (!capturedDataURL || useBtnDisabled) return;
+  useBtnDisabled = true; // ป้องกัน double-tap
+  useBtn.disabled = true;
 
-  // วิธีที่ 1: postMessage ไปหน้าต่าง opener (popup mode)
+  const payload = {
+    type: 'CKD_PHOTO_CAPTURED',
+    data: capturedDataURL,
+    user: camUser
+  };
+
+  // วิธีที่ 1: postMessage ไปยัง opener (popup mode)
+  let sentViaPostMessage = false;
   if (window.opener && !window.opener.closed) {
     try {
-      window.opener.postMessage({
-        type: 'CKD_PHOTO_CAPTURED',
-        data: capturedDataURL,
-        user: camUser
-      }, '*');
-      showSent();
-      return;
-    } catch(e) {}
+      window.opener.postMessage(payload, '*');
+      sentViaPostMessage = true;
+    } catch(e) {
+      sentViaPostMessage = false;
+    }
   }
 
-  // วิธีที่ 2: ไม่มี opener → เก็บใน localStorage แล้วปิด (fallback)
+  // วิธีที่ 2: เก็บใน localStorage เสมอ (เป็น fallback สำหรับกรณี opener ไม่ได้รับ)
+  // ใช้ key เฉพาะ user เพื่อไม่ตีกัน
   try {
-    localStorage.setItem('ckd_camera_photo', JSON.stringify({
+    localStorage.setItem(LS_PHOTO_KEY, JSON.stringify({
       data: capturedDataURL,
       user: camUser,
       ts: Date.now()
     }));
-  } catch(e) {}
+  } catch(e) {
+    // localStorage อาจเต็ม (base64 รูปใหญ่) — ไม่เป็นไร postMessage จะ handle
+    console.warn('localStorage full, relying on postMessage only');
+  }
 
-  showSent();
+  showSent(sentViaPostMessage);
 });
 
-function showSent() {
+function showSent(viaPostMessage) {
   sentEl.classList.add('show');
   setMsg('✓ ส่งรูปกลับสำเร็จ', 'ok');
+
+  // reset state
   capturedDataURL = null;
   prevOv.classList.remove('show');
   useBar.classList.remove('show');
   shutter.disabled = false;
-  setTimeout(() => { try { window.close(); } catch(e) {} }, 1800);
+
+  // ปิดหน้าต่างหลังจาก delay เล็กน้อยเพื่อให้ postMessage ส่งได้ก่อน
+  setTimeout(() => {
+    try { window.close(); } catch(e) {}
+  }, 1200);
 }
 
 /* ── Keyboard shortcuts ── */
 document.addEventListener('keydown', e => {
   if (e.code === 'Space' && isOpen && !shutter.disabled) { e.preventDefault(); shutter.click(); }
   if (e.code === 'Escape' && capturedDataURL) retake.click();
-  if (e.code === 'Enter' && capturedDataURL) useBtn.click();
+  if (e.code === 'Enter' && capturedDataURL && !useBtnDisabled) useBtn.click();
 });
 document.addEventListener('visibilitychange', () => { if (document.hidden && isOpen) stopCamera(); });
 </script>
