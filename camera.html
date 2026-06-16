@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <title>ถ่ายรูป — CKD Studio</title>
   <style>
@@ -251,14 +252,12 @@ const sentEl  = document.getElementById('sent');
 /* ── State ── */
 let stream = null, devices = [], facingMode = 'environment', mirrorOn = false, gridOn = false, isOpen = false;
 let capturedDataURL = null;
-let useBtnDisabled = false; // guard ป้องกัน double-tap
+let useBtnDisabled = false;
 
 // รับ returnUrl และ username จาก query string
 const urlParams  = new URLSearchParams(location.search);
 const returnUrl  = urlParams.get('returnUrl') || '';
 const camUser    = urlParams.get('user') || '';
-
-// localStorage key เฉพาะ user (ไม่ตีกันถ้าเปิดหลาย tab)
 const LS_PHOTO_KEY = 'ckd_camera_photo_' + camUser;
 
 const SVG_EYE = `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/>`;
@@ -266,6 +265,15 @@ const SVG_X   = `<line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" strok
 
 function setMsg(t, c='') { msgEl.textContent = t; msgEl.className = c; }
 function doFlash() { flashEl.classList.add('on'); setTimeout(() => flashEl.classList.remove('on'), 130); }
+
+/* ── ✅ FIX: Release stream ก่อนเสมอ ── */
+function releaseStream() {
+  if (stream) {
+    stream.getTracks().forEach(t => { t.stop(); });
+    stream = null;
+  }
+  video.srcObject = null;
+}
 
 /* ── Device helpers ── */
 function findRearCameraIndex(devList) {
@@ -296,7 +304,9 @@ async function loadDevices() {
 
 /* ── Camera start/stop ── */
 async function startCamera(deviceId) {
-  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  // ✅ FIX: ปล่อย stream เดิมก่อนเสมอ แล้วรอให้ browser ปล่อย track
+  releaseStream();
+  await new Promise(r => setTimeout(r, 120)); // รอให้ browser release track
 
   let constraints;
   if (deviceId) {
@@ -323,6 +333,7 @@ async function startCamera(deviceId) {
     openIco.innerHTML = SVG_X;
     setMsg('✓ เปิดกล้องสำเร็จ — ' + (s.width||'?') + '×' + (s.height||'?'), 'ok');
   } catch(err) {
+    releaseStream(); // cleanup ถ้า fail
     if ((err.name === 'OverconstrainedError' || err.name === 'NotFoundError') && facingMode === 'environment') {
       facingMode = 'user'; mirrorOn = true;
       return startCamera(deviceId);
@@ -334,18 +345,25 @@ async function startCamera(deviceId) {
     }
     let m = 'ไม่สามารถเปิดกล้องได้';
     if (err.name === 'NotAllowedError') m = 'กรุณาอนุญาตการใช้กล้อง';
-    else if (err.name === 'NotReadableError') m = 'กล้องถูกใช้งานโดยแอปอื่น';
+    else if (err.name === 'NotReadableError') m = 'กล้องถูกใช้งานโดยแอปอื่น — ลองปิด tab กล้อง แล้วกดใหม่';
     else if (err.name === 'SecurityError' || err.name === 'NotSupportedError') m = 'ต้องใช้บน HTTPS';
     setMsg('⚠ ' + m, 'err');
   }
 }
 
 function stopCamera() {
-  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
-  video.srcObject = null; video.style.display = 'none'; ph.style.display = 'flex';
-  liveB.style.display = 'none'; shutter.disabled = true; flipBtn.disabled = true;
-  gridBtn.disabled = true; mirBtn.disabled = true; isOpen = false;
-  openBtn.classList.remove('active'); openIco.innerHTML = SVG_EYE; setMsg('ปิดกล้องแล้ว');
+  releaseStream(); // ✅ FIX: ใช้ releaseStream แทน
+  video.style.display = 'none';
+  ph.style.display = 'flex';
+  liveB.style.display = 'none';
+  shutter.disabled = true;
+  flipBtn.disabled = true;
+  gridBtn.disabled = true;
+  mirBtn.disabled = true;
+  isOpen = false;
+  openBtn.classList.remove('active');
+  openIco.innerHTML = SVG_EYE;
+  setMsg('ปิดกล้องแล้ว');
 }
 
 function updateMirror() {
@@ -353,6 +371,26 @@ function updateMirror() {
   video.classList.toggle('mirror', !isRear && mirrorOn);
   mirBtn.classList.toggle('on', mirrorOn && !isRear);
 }
+
+/* ── ✅ FIX: Page visibility — stop เมื่อ hidden, restart เมื่อ visible ── */
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    if (isOpen) {
+      releaseStream(); // ปล่อยกล้องตอน hidden
+    }
+  } else {
+    if (isOpen) {
+      // restart กล้องเมื่อกลับมา
+      const selDeviceId = devSel.value && devSel.value !== 'เลือกกล้อง' ? devSel.value : undefined;
+      startCamera(selDeviceId);
+    }
+  }
+});
+
+/* ── ✅ FIX: Window beforeunload — release stream ── */
+window.addEventListener('beforeunload', () => {
+  releaseStream();
+});
 
 /* ── Controls ── */
 openBtn.addEventListener('click', () => {
@@ -440,7 +478,7 @@ retake.addEventListener('click', () => {
 /* ── ส่งรูปกลับ parent window ── */
 useBtn.addEventListener('click', () => {
   if (!capturedDataURL || useBtnDisabled) return;
-  useBtnDisabled = true; // ป้องกัน double-tap
+  useBtnDisabled = true;
   useBtn.disabled = true;
 
   const payload = {
@@ -449,7 +487,6 @@ useBtn.addEventListener('click', () => {
     user: camUser
   };
 
-  // วิธีที่ 1: postMessage ไปยัง opener (popup mode)
   let sentViaPostMessage = false;
   if (window.opener && !window.opener.closed) {
     try {
@@ -460,8 +497,6 @@ useBtn.addEventListener('click', () => {
     }
   }
 
-  // วิธีที่ 2: เก็บใน localStorage เสมอ (เป็น fallback สำหรับกรณี opener ไม่ได้รับ)
-  // ใช้ key เฉพาะ user เพื่อไม่ตีกัน
   try {
     localStorage.setItem(LS_PHOTO_KEY, JSON.stringify({
       data: capturedDataURL,
@@ -469,24 +504,21 @@ useBtn.addEventListener('click', () => {
       ts: Date.now()
     }));
   } catch(e) {
-    // localStorage อาจเต็ม (base64 รูปใหญ่) — ไม่เป็นไร postMessage จะ handle
     console.warn('localStorage full, relying on postMessage only');
   }
 
+  // ✅ FIX: Release stream ก่อนปิดหน้าต่าง
+  releaseStream();
   showSent(sentViaPostMessage);
 });
 
 function showSent(viaPostMessage) {
   sentEl.classList.add('show');
   setMsg('✓ ส่งรูปกลับสำเร็จ', 'ok');
-
-  // reset state
   capturedDataURL = null;
   prevOv.classList.remove('show');
   useBar.classList.remove('show');
   shutter.disabled = false;
-
-  // ปิดหน้าต่างหลังจาก delay เล็กน้อยเพื่อให้ postMessage ส่งได้ก่อน
   setTimeout(() => {
     try { window.close(); } catch(e) {}
   }, 1200);
@@ -498,7 +530,6 @@ document.addEventListener('keydown', e => {
   if (e.code === 'Escape' && capturedDataURL) retake.click();
   if (e.code === 'Enter' && capturedDataURL && !useBtnDisabled) useBtn.click();
 });
-document.addEventListener('visibilitychange', () => { if (document.hidden && isOpen) stopCamera(); });
 </script>
 </body>
 </html>
